@@ -9,22 +9,25 @@
 #define CLUSTER 3
 
 int main(void) {
+	/**********************cluster variable**********************/
+	int k = CLUSTER; //cluster number
+	float alpha = 0.1, beta = 0.005;
 	/**********************variables**********************/
 	FILE* ipf;
 	FILE* svf;
 	int i, j, h;
-	float **X; //data table
-	float **center;//cluster center
-	float *Rmean; //save row means 
-	float **D; //save distance 
-	float **M; //cluster mean
-	int **U;
+	float **X; //data table : n x dim
+	float **center;//cluster centers : k x dim
+	float *Rmean; //save row means : dim
+	float **D; //save distance  : n x k
+	float **M; //cluster mean : dim x k
+	int **U; //cluster inform : n x k
 
-	int *cluNum; //final cluster number
+	int *cluNum; //final cluster number : n
 	char **label; //save labels
 	char **cLabel; //save center labels
 	int it, nRow, nCol; // nRow = n , nCol = dim
-	int k = CLUSTER; //cluster number
+
 	
 					 
 	/**********************file open******************** **/
@@ -102,7 +105,6 @@ int main(void) {
 				temp = -1;
 			}
 		}
-
 		if (temp > 0) {
 			a[i] = temp;
 			i++;
@@ -110,17 +112,14 @@ int main(void) {
 
 	}
 	for (i = 0; i < k; i++) {
-		printf("\n primary center %d\n", a[i]);
 		//cLabel[i] = label[a[i]];
-		center[i] = X[a[i]];
-		for (j = 0; j < nCol; j++) {
-		printf("%f ", center[i][j]);
+		for (j = 0; j < nCol; j++) {;
+		center[i][j] = X[a[i]][j];
 		}
 	}
 
 	int t = 0;
 	int t_max = 100;
-
 
 	/**********************iteration**********************/
 
@@ -226,8 +225,7 @@ int main(void) {
 	float J = INFINITY;
 	float oldJ = 0;
 	int epsilon = 0;
-	t = 0;
-	float alpha = 0, beta = 0;
+	
 	float N = (float)nRow;
 	float alphaN = round(alpha*N);
 	float betaN = round(beta*N);
@@ -238,200 +236,140 @@ int main(void) {
 		dnk[i] = (float*)calloc(3, sizeof(float));
 	}
 
-
-
-
-	oldJ = J;
-	J = 0;
-	//================compute cluster means
-	float sum; int num;
-	for (i = 0; i < k; i++) {
-		for (j = 0; j < nCol; j++) {
-			sum = 0;
-			num = 0;
-			for (h = 0; h < nRow; h++) {
-				if (U[h][i] == 1) {
-					sum += X[h][j];
-					num++;
-				}
-			} //i번째 클러스터에서 X의 한 col 더함
-			if (num > 0) {
-				sum = sum / (float)num;
-			}
-			M[j][i] = sum;
-
-		}
-	}
-
-	printf("***M\n");
-	for (i = 0; i < nCol; i++) {
-		for (j = 0; j < k; j++) {
-			printf("%f ", M[i][j]);
-		}
-		printf("\n");
-	}
-
-
-	//================compute distance
-
-	float dif;
-	for (i = 0; i < k; i++) {
-		for (j = 0; j < nRow; j++) {
-			dif = 0;
-			for (h = 0; h < nCol; h++) {
-				dif += (X[j][h] - M[h][i])*(X[j][h] - M[h][i]);
-			}
-			D[j][i] = dif;
-		}
-	}
-
-	printf("***dist\n");
-	for (i = 0; i < nRow; i++) {
-		for (j = 0; j < k; j++) {
-			printf("%f ", D[i][j]);
-		}
-		printf("\n");
-	}
-
-	//================make N-betaN assignments
-
-	float min; 
-	int mindx;
-	for (i = 0; i < nRow; i++) {
-		min =INFINITY;
-		mindx = 0;
-		for(j = 0; j < nCol; j++) {
-			if (D[i][j] < min) {
-				min = D[i][j];
-				mindx = j;
-			}
-		}
-		dnk[i][0] = min;
-		dnk[i][1] = i;
-		dnk[i][2] = mindx;
-	}
-	printf("\n");
-	for (i = 0; i < nRow; i++) {
-		for (j = 0; j < 3; j++) {
-			printf("%f ", dnk[i][j]);
-		}
-		printf("\n");
-	}
-
-	float* dnkt = (float*)calloc(3, sizeof(float));
-	for (i = 0; i < nRow - 1; i++) {
-		for (j = 0; j < nRow - 1 - i; j++) {
-			if (dnk[j][0] > dnk[j + 1][0]) {
-				dnkt = dnk[j];
-				dnk[j] = dnk[j + 1];
-				dnk[j + 1] = dnkt;
-			}
-		}
-	}
-
-	printf("***\n");
-	for (i = 0; i < nRow; i++) {
-		for (j = 0; j < 3; j++) {
-			printf("%f ", dnk[i][j]);
-		}
-		printf("\n");
-	}
-
-	nAssign = N - betaN;
-	nAssign = 5; //to test
-	for (i = 0; i < nAssign; i++) {
-		J = J + dnk[i][0];
-	}
-	printf("J = %f\n", J);
-
-
-
-
-
-
-	int** tmp = (int**)calloc(nAssign,sizeof(int*));
-	for (i = 0; i < nAssign; i++) {
-		tmp[i] = (int*)calloc(2, sizeof(int));
-	}
-
-	for (i = 0; i < nRow; i++) {
-		for (j = 0; j < nCol; j++) {
-			U[i][j] = 0;
-		}
-	}
-	int r, cl;
-	for (i = 0; i < nAssign; i++) {
-		r = dnk[i][1];
-		cl = dnk[i][2];
-		U[r][cl] = 1;
-		tmp[i][0] = r;
-		tmp[i][1] = cl;
-	}
-
-	printf("***U\n");
-	for (i = 0; i < nRow; i++) {
-		for (j = 0; j < k; j++) {
-			printf("%d ", U[i][j]);
-		}
-		printf("\n");
-	}
-
-
-	for (i = 0; i < nAssign; i++) {
-		D[tmp[i][0]][tmp[i][1]] = INFINITY;
-	}
-	
-	printf("***dist\n");
-	for (i = 0; i < nRow; i++) {
-		for (j = 0; j < k; j++) {
-			printf("%f ", D[i][j]);
-		}
-		printf("\n");
-	}
-
-	//================make(alphaN + betaN) assignments
-	int n = 0;
-	float min_d;
-	int i_star, j_star;
-	while (n < 3) {
-		min_d = INFINITY;
-		for (i = 0; i < nRow; i++) {
+	t = 0;
+	float abj = (oldJ > J) ? oldJ - J : J - oldJ;
+	//================iteration
+	while ((abj > epsilon) && (t <= t_max)) {
+		oldJ = J;
+		J = 0;
+		//================compute cluster means
+		float sum; int num;
+		for (i = 0; i < k; i++) {
 			for (j = 0; j < nCol; j++) {
-				if (D[i][j] < min_d) {
-					min_d = D[i][j];
-					i_star = i;
-					j_star = j;
+				sum = 0;
+				num = 0;
+				for (h = 0; h < nRow; h++) {
+					if (U[h][i] == 1) {
+						sum += X[h][j];
+						num++;
+					}
+				} //i번째 클러스터에서 X의 한 col 더함
+				if (num > 0) {
+					sum = sum / (float)num;
+				}
+				M[j][i] = sum;
+
+			}
+		}
+
+
+		//================compute distance
+
+		float dif;
+		for (i = 0; i < k; i++) {
+			for (j = 0; j < nRow; j++) {
+				dif = 0;
+				for (h = 0; h < nCol; h++) {
+					dif += (X[j][h] - M[h][i])*(X[j][h] - M[h][i]);
+				}
+				D[j][i] = dif;
+			}
+		}
+
+		//================make N-betaN assignments
+
+		float min;
+		int mindx;
+		for (i = 0; i < nRow; i++) {
+			min = INFINITY;
+			mindx = 0;
+			for (j = 0; j < nCol; j++) {
+				if (D[i][j] < min) {
+					min = D[i][j];
+					mindx = j;
+				}
+			}
+			dnk[i][0] = min;
+			dnk[i][1] = i;
+			dnk[i][2] = mindx;
+		}
+
+		float* dnkt = (float*)calloc(3, sizeof(float));
+		for (i = 0; i < nRow - 1; i++) { //bubble sort
+			for (j = 0; j < nRow - 1 - i; j++) {
+				if (dnk[j][0] > dnk[j + 1][0]) {
+					dnkt = dnk[j];
+					dnk[j] = dnk[j + 1];
+					dnk[j + 1] = dnkt;
 				}
 			}
 		}
-		J = J + min_d;
-		U[i_star][j_star] = 1;
-		D[i_star][j_star] = INFINITY;
 
-		n++;
+
+		nAssign = N - betaN;
+		for (i = 0; i < nAssign; i++) {
+			J = J + dnk[i][0];
+		}
+		printf("%f\n", J);
+		int** tmp = (int**)calloc(nAssign, sizeof(int*));
+		for (i = 0; i < nAssign; i++) {
+			tmp[i] = (int*)calloc(2, sizeof(int));
+		}
+
+		for (i = 0; i < nRow; i++) {
+			for (j = 0; j < k; j++) {
+				U[i][j] = 0;
+			}
+		}
+		int r, cl;
+		for (i = 0; i < nAssign; i++) {
+			r = dnk[i][1];
+			cl = dnk[i][2];
+			U[r][cl] = 1;
+			tmp[i][0] = r;
+			tmp[i][1] = cl;
+		}
+
+
+		for (i = 0; i < nAssign; i++) {
+			D[tmp[i][0]][tmp[i][1]] = INFINITY;
+		}
+
+		//================make(alphaN + betaN) assignments
+		int n = 0;
+		float min_d;
+		int i_star, j_star;
+		while (n < alphaN+betaN) {
+			min_d = INFINITY;
+			for (i = 0; i < nRow; i++) {
+				for (j = 0; j < nCol; j++) {
+					if (D[i][j] < min_d) {
+						min_d = D[i][j];
+						i_star = i;
+						j_star = j;
+					}
+				}
+			}
+			J = J + min_d;
+			U[i_star][j_star] = 1;
+			D[i_star][j_star] = INFINITY;
+
+			n++;
+		}
+
+		t++;
+		printf("%f \n", J);
+		abj = (oldJ > J) ? oldJ - J : J - oldJ;
+		
 	}
 
-	printf("***U\n");
 	for (i = 0; i < nRow; i++) {
 		for (j = 0; j < k; j++) {
 			printf("%d ", U[i][j]);
 		}
 		printf("\n");
 	}
-
-
-
-	//while ((abs(oldJ - J) > epsilon) && (t <= t_max)) {
-	//	
-	//	
-	//}
-
-
-
-
-
-
-
+	printf("%f \n", J);
 
 	fclose(ipf);
 	fclose(svf);

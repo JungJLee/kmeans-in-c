@@ -6,7 +6,7 @@
 #include <ctype.h>
 #define MAX_STR 512
 #define MAX 1.0e12
-#define CLUSTER 3
+#define CLUSTER 2
 
 int main(void) {
 	/**********************cluster variable**********************/
@@ -15,6 +15,7 @@ int main(void) {
 	/**********************variables**********************/
 	FILE* ipf;
 	FILE* svf;
+	FILE* svnf;
 	int i, j, h;
 	float **X; //data table : n x dim
 	float **center;//cluster centers : k x dim
@@ -31,7 +32,7 @@ int main(void) {
 	
 					 
 	/**********************file open******************** **/
-	ipf = fopen("input.txt", "r");
+	ipf = fopen("X.txt", "r");
 	if (ipf == NULL) {
 		printf("Input file open error\n");
 		exit(1);
@@ -41,7 +42,11 @@ int main(void) {
 		printf("Output file open error\n");
 		exit(1);
 	}
-
+	svnf = fopen("neo_output.txt", "w");
+	if (ipf == NULL) {
+		printf("Output file open error\n");
+		exit(1);
+	}
 	if (fscanf(ipf, "rows=%d columns=%d\n", &nRow, &nCol) != 2)
 	{ //write rows=x columns=y at first line of file
 		printf("Format error in first line\n");
@@ -171,19 +176,6 @@ int main(void) {
 			U[i][cluNum[i]] = 1;
 	}
 
-	//prints
-	printf("\n======================\n");
-	for (i = 0; i < k; i++) {
-		for (j = 0; j < nCol; j++) {
-			printf("%f ", center[i][j]);
-		}
-		printf	("\n");
-	}
-
-	for (i = 0; i < nRow; i++) {
-		printf("%d ", cluNum[i]);
-	}
-	printf("\n");
 
 	/**********************result print**********************/
 	for (i = 0; i < k; i++) {
@@ -194,7 +186,7 @@ int main(void) {
 	}
 
 	for (i = 0; i < k; i++) {
-		fprintf(svf, "Cluster %d\n", i);
+		fprintf(svf, "**********************Cluster %d\n", i);
 		for (j = 0; j < nRow; j++) {
 			if (cluNum[j] == i) {
 				fprintf(svf, "%d ", j);
@@ -203,16 +195,6 @@ int main(void) {
 				}
 				fprintf(svf, "\n");
 			}
-		}
-
-	}
-
-	//cmd print
-	for (i = 0; i < k; i++) {
-		printf("\nCluster%d\n===========\n", i);
-		for (j = 0; j < nRow; j++) {
-			if (cluNum[j] == i)
-				printf("%d\n", j);
 		}
 
 	}
@@ -310,7 +292,7 @@ int main(void) {
 		for (i = 0; i < nAssign; i++) {
 			J = J + dnk[i][0];
 		}
-		printf("%f\n", J);
+
 		int** tmp = (int**)calloc(nAssign, sizeof(int*));
 		for (i = 0; i < nAssign; i++) {
 			tmp[i] = (int*)calloc(2, sizeof(int));
@@ -358,21 +340,32 @@ int main(void) {
 		}
 
 		t++;
-		printf("%f \n", J);
+		printf("Iteratoin %d, objective : %f\n", t, J);
 		abj = (oldJ > J) ? oldJ - J : J - oldJ;
 		
 	}
 
+	//for (i = 0; i < nRow; i++) {
+	//	for (j = 0; j < k; j++) {
+	//		printf("%d ", U[i][j]);
+	//	}
+	//	printf("\n");
+	//}
+	//printf("%f \n", J);
+
+
 	for (i = 0; i < nRow; i++) {
 		for (j = 0; j < k; j++) {
-			printf("%d ", U[i][j]);
+			fprintf(svnf, "%d ", U[i][j]);
 		}
-		printf("\n");
+		fprintf(svnf, "\n");
 	}
-	printf("%f \n", J);
+
+
+
 
 	fclose(ipf);
 	fclose(svf);
-
+	fclose(svnf);
 }
 

@@ -4,35 +4,51 @@
 #include <string.h>
 #include <math.h>
 #include <ctype.h>
+#include <time.h>
 #define MAX_STR 512
 #define MAX 1.0e12
-#define CLUSTER 2
+#define CLUSTER 5
+#define R 5
+#define C 158
+
 
 int main(void) {
+	time_t startTime = 0, endTime = 0;
+	float gap;
+	startTime = clock();
+
+
 	/**********************cluster variable**********************/
 	int k = CLUSTER; //cluster number
 	float alpha = 0.1, beta = 0.005;
+	int nRow, nCol;
+
 	/**********************variables**********************/
 	FILE* ipf;
 	FILE* svf;
 	FILE* svnf;
 	int i, j, h;
+
 	float **X; //data table : n x dim
+	char **label; //save labels
+
 	float **center;//cluster centers : k x dim
+	float **oldcenter;
 	float *Rmean; //save row means : dim
+	int *cluNum; //final cluster number : n
+
 	float **D; //save distance  : n x k
 	float **M; //cluster mean : dim x k
 	int **U; //cluster inform : n x k
 
-	int *cluNum; //final cluster number : n
-	char **label; //save labels
-	char **cLabel; //save center labels
-	int it, nRow, nCol; // nRow = n , nCol = dim
+
+
+	int it; // nRow = n , nCol = dim
 
 	
 					 
 	/**********************file open******************** **/
-	ipf = fopen("X.txt", "r");
+	ipf = fopen("input.txt", "r");
 	if (ipf == NULL) {
 		printf("Input file open error\n");
 		exit(1);
@@ -47,6 +63,7 @@ int main(void) {
 		printf("Output file open error\n");
 		exit(1);
 	}
+
 	if (fscanf(ipf, "rows=%d columns=%d\n", &nRow, &nCol) != 2)
 	{ //write rows=x columns=y at first line of file
 		printf("Format error in first line\n");
@@ -61,7 +78,7 @@ int main(void) {
 	U = (int**)calloc(nRow, sizeof(int*));
 
 	center = (float**)calloc(k, sizeof(float*));
-	cLabel = (char**)calloc(k, sizeof(char*));
+	oldcenter = (float**)calloc(k, sizeof(float*));
 
 	Rmean = (float*)calloc(nCol, sizeof(float));
 	M = (float**)calloc(nCol, sizeof(float*));
@@ -75,7 +92,7 @@ int main(void) {
 
 	for (i = 0; i < k; i++) {
 		center[i] = (float*)calloc(nCol, sizeof(float));
-		cLabel[i] = (char*)calloc(MAX_STR, sizeof(char));
+		oldcenter[i] = (float*)calloc(nCol, sizeof(float));
 	}
 
 	for (i = 0; i < nCol; i++) {
@@ -84,7 +101,11 @@ int main(void) {
 
 	/**********************read labels and data**********************/
 	for (i = 0; i < nRow; i++) {
-		//fscanf(ipf, "%s", label[i]);
+		
+		//lable 개수만큼
+		fscanf(ipf, "%s", label[i]);
+		fscanf(ipf, "%s", label[i]);
+		
 		for ( j = 0; j < nCol; j++) {
 			fscanf(ipf, "%f", &(X[i][j]));
 			Rmean[j] += X[i][j];
@@ -94,15 +115,15 @@ int main(void) {
 	}
 
 	//row mean
-
 	for (i = 0; i < nCol; i++) {
 		Rmean[i] /= nRow;
 	}
 
-
 	/**********************choose centers randomly**********************/
 	int* a = (int*)calloc(k, sizeof(int));
-	int temp; i = 0;
+	int temp; 
+	i = 0;
+	srand((unsigned)time(NULL));
 	while (i < k) {
 		temp = (rand() % nRow);
 		for (j = i-1; j >= 0; j--) {
@@ -117,7 +138,7 @@ int main(void) {
 
 	}
 	for (i = 0; i < k; i++) {
-		//cLabel[i] = label[a[i]];
+
 		for (j = 0; j < nCol; j++) {;
 		center[i][j] = X[a[i]][j];
 		}
@@ -128,15 +149,23 @@ int main(void) {
 
 	/**********************iteration**********************/
 
-	while ( t <= t_max) {
+
+	float rMin;
+
+	while ( t <= t_max ) {
+		for (i = 0; i < k; i++) {
+			for (j = 0; j < nCol; j++) {
+				oldcenter[i][j] = center[i][j];
+			}
+		}
+
 		//calc distance
-		float rMin;
 		for (i = 0; i < nRow; i++) {
 			rMin = MAX;
 			for (j = 0; j < k; j++) {
 				D[i][j] = 0;
-				for (int e = 0; e < nCol; e++) {
-					D[i][j] += (X[i][e] - center[j][e])*(X[i][e] - center[j][e]);
+				for (h = 0; h < nCol; h++) {
+					D[i][j] += (X[i][h] - center[j][h])*(X[i][h] - center[j][h]);
 				}
 				if (D[i][j] < rMin) {
 					cluNum[i] = j;
@@ -146,36 +175,56 @@ int main(void) {
 		}
 
 		//update cluster
+		float *cent_ = (float*)calloc(nCol, sizeof(float));
 		for (j = 0; j < k; j++) {
-			float *cent_ = (float*)calloc(nCol, sizeof(float));
 			int total = 0;
+			for (i = 0; i < nCol; i++) {
+				cent_[i] = 0;
+			}
 			for (i = 0; i < nRow; i++) {
 				if (cluNum[i] == j) {
-					for (int e = 0; e < nCol; e++) {
-						cent_[e] += X[i][e];
+					for (h = 0; h < nCol; h++) {
+						cent_[h] += X[i][h];
 					}
 					total++;
 				}
 			}
 
 			if (total > 0) {
-				for (int e = 0; e < nCol; e++) {
-					center[j][e] = cent_[e] / total;
+				for (h = 0 ;h < nCol; h++) {
+					center[j][h] = cent_[h] / total;
 				}
 			}
 			else {
-				for (int e = 0; e < nCol; e++) {
-					center[j][e] = Rmean[e];
+				for (h = 0 ; h < nCol; h++) {
+					center[j][h] = Rmean[h];
+					
 				}
 			}
 		}
+
+
+		//test
+		int flag = 0;
+		for (i = 0; i < k; i++) {
+			for (j = 0; j < nCol; j++) {
+				if (oldcenter[i][j] != center[i][j]) {
+					flag++;
+				}
+			}			
+		}
+		if ( t>9 && flag == 0) break;
+
 		t = t + 1;
-	}
+	}//end of iteration
 
 	for (i = 0; i < nRow; i++) {
 			U[i][cluNum[i]] = 1;
 	}
 
+	endTime = clock();
+	gap = (float)(endTime - startTime) / (CLOCKS_PER_SEC);
+	printf("\n%f %d \n\n", gap,t);
 
 	/**********************result print**********************/
 	for (i = 0; i < k; i++) {
@@ -199,6 +248,17 @@ int main(void) {
 
 	}
 
+	free(center);
+	free(Rmean);
+	free(cluNum);
+	free(label);
+
+
+
+
+
+
+
 
 	/*************************************************************************************
 	******************************Non-exhaustiveness, overlapping*************************
@@ -219,7 +279,8 @@ int main(void) {
 	}
 
 	t = 0;
-	float abj = (oldJ > J) ? oldJ - J : J - oldJ;
+	
+	float abj = (oldJ > J) ? (oldJ - J) : (J - oldJ);
 	//================iteration
 	while ((abj > epsilon) && (t <= t_max)) {
 		oldJ = J;
@@ -258,6 +319,7 @@ int main(void) {
 			}
 		}
 
+
 		//================make N-betaN assignments
 
 		float min;
@@ -265,16 +327,18 @@ int main(void) {
 		for (i = 0; i < nRow; i++) {
 			min = INFINITY;
 			mindx = 0;
-			for (j = 0; j < nCol; j++) {
+			for (j = 0; j < k; j++) {
 				if (D[i][j] < min) {
 					min = D[i][j];
+					//printf("%f\n", min);
 					mindx = j;
 				}
 			}
 			dnk[i][0] = min;
-			dnk[i][1] = i;
-			dnk[i][2] = mindx;
+			dnk[i][1] = (float)i;
+			dnk[i][2] = (float)mindx;
 		}
+
 
 		float* dnkt = (float*)calloc(3, sizeof(float));
 		for (i = 0; i < nRow - 1; i++) { //bubble sort
@@ -292,6 +356,7 @@ int main(void) {
 		for (i = 0; i < nAssign; i++) {
 			J = J + dnk[i][0];
 		}
+
 
 		int** tmp = (int**)calloc(nAssign, sizeof(int*));
 		for (i = 0; i < nAssign; i++) {
@@ -324,7 +389,7 @@ int main(void) {
 		while (n < alphaN+betaN) {
 			min_d = INFINITY;
 			for (i = 0; i < nRow; i++) {
-				for (j = 0; j < nCol; j++) {
+				for (j = 0; j < k; j++) {
 					if (D[i][j] < min_d) {
 						min_d = D[i][j];
 						i_star = i;
@@ -341,17 +406,9 @@ int main(void) {
 
 		t++;
 		printf("Iteratoin %d, objective : %f\n", t, J);
-		abj = (oldJ > J) ? oldJ - J : J - oldJ;
+		abj = (oldJ > J) ? (oldJ - J) : (J - oldJ);
 		
 	}
-
-	//for (i = 0; i < nRow; i++) {
-	//	for (j = 0; j < k; j++) {
-	//		printf("%d ", U[i][j]);
-	//	}
-	//	printf("\n");
-	//}
-	//printf("%f \n", J);
 
 
 	for (i = 0; i < nRow; i++) {
@@ -367,5 +424,8 @@ int main(void) {
 	fclose(ipf);
 	fclose(svf);
 	fclose(svnf);
+	endTime = clock();
+	gap = (float)(endTime - startTime) / (CLOCKS_PER_SEC);
+	printf("%f", gap);
 }
 

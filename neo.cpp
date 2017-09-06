@@ -5,12 +5,12 @@
 #include <math.h>
 #include <ctype.h>
 #include <time.h>
-#define MAX_STR 512
+#define MAX_STR 100
 #define MAX 1.0e12
 #define CLUSTER 3
 float alpha;
 float beta;
-
+int lablenum = 2; //number of lable column
 
 void quickSort(int left, int right, float** data);
 void estimate_alpha_beta(float** X, float** C, float alpha_delta, float beta_delta, int k, int n, int dim);
@@ -99,10 +99,10 @@ int main(void) {
 	/**********************read labels and data**********************/
 	for (i = 0; i < nRow; i++) {
 		
-		//lable 개수만큼 scan
-		fscanf(ipf, "%s", label[i]);
-		fscanf(ipf, "%s", label[i]);
-		
+		//labelscan
+		for (j = 0; j < lablenum; j++) {
+			fscanf(ipf, "%s", label[i]);
+		}
 		for ( j = 0; j < nCol; j++) {
 			fscanf(ipf, "%f", &(X[i][j]));
 			Rmean[j] += X[i][j];
@@ -115,6 +115,26 @@ int main(void) {
 	for (i = 0; i < nCol; i++) {
 		Rmean[i] /= nRow;
 	}
+
+	//normalization
+	//ei = (ei-min)/(max-min)
+	float minei = INFINITY, maxei = 0;
+	for (i = 0; i < nRow; i++) {
+		minei = INFINITY;
+		maxei = 0;
+		for (j = 0; j < nCol; j++) {
+			if (X[i][j] > maxei)
+				maxei = X[i][j];
+			if (X[i][j] < minei)
+				minei = X[i][j];
+		}
+		for (j = 0; j < nCol; j++) {
+			X[i][j] = (X[i][j] - minei) / (maxei - minei);
+		}
+	}
+
+
+
 
 	/**********************choose centers randomly**********************/
 	int* a = (int*)calloc(k, sizeof(int));
@@ -249,7 +269,7 @@ int main(void) {
 
 
 
-	estimate_alpha_beta(X, center, alpha_delta, beta_delta, k, nRow, nCol);
+	//estimate_alpha_beta(X, center, alpha_delta, beta_delta, k, nRow, nCol);
 	printf("alpha : %f, beta : %f \n", alpha, beta);
 
 	free(Rmean);
@@ -319,6 +339,8 @@ int main(void) {
 
 			}
 		}
+
+
 
 
 		//================compute distance
@@ -410,6 +432,10 @@ int main(void) {
 	}
 
 	printf("%d\n", alphaN);
+	endTime = clock();
+	gap = (float)(endTime - startTime) / (CLOCKS_PER_SEC);
+	printf("%f", gap);
+
 	int unum = 0;
 	for (i = 0; i < nRow; i++) {
 		unum = 0;
@@ -428,9 +454,7 @@ int main(void) {
 	fclose(ipf);
 	//fclose(svf);
 	fclose(svnf);
-	endTime = clock();
-	gap = (float)(endTime - startTime) / (CLOCKS_PER_SEC);
-	printf("%f", gap);
+
 }
 
 

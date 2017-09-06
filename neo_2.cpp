@@ -238,7 +238,7 @@ int main(void) {
 		int mindx;
 		int r, cl;
 
-		//if (flag < nAssign) {
+		if (flag < nAssign) {
 
 			for (i = 0; i < nRow; i++) {
 				min = INFINITY;
@@ -273,8 +273,8 @@ int main(void) {
 				printf("%d\n", flag);
 				tempJ = J;
 			}
-		//}
-		/*else {
+		}
+		else {
 			for (i = 0; i < nAssign; i++) {
 				r = U[i][0];
 				cl = U[i][1];
@@ -282,7 +282,7 @@ int main(void) {
 				D[r][cl-1] = INFINITY;
 				
 			}
-		}*/
+		}
 
 		h = nAssign;
 		for (i = h; i < uAssign; i++) {
@@ -318,7 +318,6 @@ int main(void) {
 		t++;
 		printf("Iteratoin %2d, objective : %f\n", t, J);
 		abj = (oldJ > J) ? (oldJ - J) : (J - oldJ);
-		fprintf(save_ptr, "%f\n", J);
 	}//end of iteration
 
 	printf("alphaN : %d, %d\n", alphaN, nAssign);
@@ -328,27 +327,13 @@ int main(void) {
 
 
 	quickSortint(0, uAssign-1, U);
-	//for (i = 0; i < uAssign ; i++) {
-	//	printf("%d %d\n", U[i][0], U[i][1]);
-	//}
+
 	j = 0;
 	for (i = 0; i < uAssign; i++) {
 		fprintf(save_ptr, "%d ", U[i][0]);
 		fprintf(save_ptr, "%d\n", U[i][1]);
 	}
-	//for (i = 0; i < nRow; i++) {
-	//	fprintf(save_ptr, "%d ", i);
-	//	if (j<uAssign && U[j][0] == i) {
-	//		while (j<uAssign && U[j][0] == i) {
-	//			fprintf(save_ptr, "%d ", U[j][1]);
-	//			j++;
-	//		}
-	//	}
-	//	else {
-	//		j++;
-	//	}
-	//	fprintf(save_ptr, "\n");
-	//}
+
 
 	fclose(input_ptr);
 	fclose(save_ptr);

@@ -1,6 +1,7 @@
 #
-neo : neo k-means
-neo_2 : modified neo k-means for faster execution.
+neo.cpp : neo k-means
+
+neo_2.cpp : modified neo k-means for faster execution.
 
 variables
 int k is number of cluster

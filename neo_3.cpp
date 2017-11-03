@@ -8,9 +8,9 @@
 #define MAX_STR 100
 #define MAX 1.0e12
 
-/**********************cluster option**********************/
+/**********************cluster options**********************/
 int k; //cluster number
-int lablenum; //number of lable column
+int labelnum; //number of lable column
 
 //alpha, beta :set by user
 float alpha = 0.1, beta = 0.005;
@@ -18,54 +18,41 @@ float alpha = 0.1, beta = 0.005;
 // beta_delta: 3 or 6
 float alpha_delta = -0.1;
 float beta_delta = 6;
+
+//option flags
 int alpha_beta_flag;
 int iter_flag;
 int norm_flag;
 
-int nRow, nCol;// nRow = n , nCol = dim
+//nRow = n, nCol = dim
+int nRow, nCol;
 int t_max = 100;
 
-void quickSort(int left, int right, float** data, int colnumber);
+//functions
+void quickSort(int left, int right, float** data); 
+void quickSort_2(int left, int right, float* data, int* index);
 void quickSortint(int left, int right, int** data);
-void estimate_alpha_beta(float** X, float** C, float alpha_delta, float beta_delta, int k, int n, int dim);
-void kmeans(float** X, float** D, int* cluNum, float* Rmean, float** center, float**oldcenter);
+void estimate_alpha_beta(float** X, float** C, int n, int dim);
+void kmeans(float** X, float** D, int* cluNum, float* Rmean, float** center);
 
 int main(void) {
-	//option
-	int selection = 1;
-	//printf("Input 0 for default, 1 for select mode : ");
-	//scanf("%d", &selection);
-	if (selection == 1) {
-		printf("Input cluster number : ");
-		scanf("%d", &k);
-		if (k < 2) {
-			printf("cluster error\n");
-			exit(1);
-		}
-		printf("Input lable column number : ");
-		scanf("%d", &lablenum);
-		printf("Choose alpha,beta. 0 for default, 1 for estimation : ");
-		scanf("%d", &alpha_beta_flag);
-		printf("Choose data normalization. 0 for default, 1 for normalization : ");
-		scanf("%d", &norm_flag);
-		printf("Choose iteration cutting. 0 for default, 1 for soft cut, 2 for improved : ");
-		scanf("%d", &iter_flag);
+	/**********************select option**********************/
+
+	printf("[ Input the number of cluster k ] (k>1) \n ");
+	scanf("%d", &k);
+	if (k < 2) {
+		printf("number of cluster error\n");
+		exit(1);
 	}
-	else {
-		k = 3;
-		lablenum = 2;
-		alpha_beta_flag = 0;
-		norm_flag = 1;
-		iter_flag = 2;
-		printf("Choose iteration cutting. 0 for default, 1 for soft cut, 2 for improved : ");
-		scanf("%d", &iter_flag);
-	}
+	printf("[ Input the number of lable column ]\n ");
+	scanf("%d", &labelnum);
+	printf("[ Choose alpha,beta. ] 0 : default, 1 : estimate \n ");
+	scanf("%d", &alpha_beta_flag);
+	printf("[ Choose data normalization. ] 0 : default, 1 : normalize\n ");
+	scanf("%d", &norm_flag);
+	printf("[ Choose iteration cutting. ] 0 : default, 1 : soft cut, 2 : speed up\n ");
+	scanf("%d", &iter_flag);
 
-
-
-
-	time_t startTime = 0, endTime = 0;
-	float gap;
 	printf("k = %d\n", k);
 
 	/**********************file open**********************/
@@ -76,8 +63,8 @@ int main(void) {
 		printf("Input file open error\n");
 		exit(1);
 	}
-	if (fscanf(input_ptr, "rows=%d columns=%d\n", &nRow, &nCol) != 2)
-	{ //write rows=x columns=y at first line of file
+	if (fscanf(input_ptr, "rows=%d columns=%d\n", &nRow, &nCol) != 2){ 
+		//write rows=x columns=y at first line of file
 		printf("Format error in first line\n");
 		exit(1);
 	}
@@ -88,26 +75,25 @@ int main(void) {
 		exit(1);
 	}
 
-	/**********************variables**********************/
+	/**********************variable, array**********************/
 	int i, j, h;
+	time_t startTime = 0, endTime = 0;
+	float gap;
 
 	float **X; //data table : n x dim
 	float **D; //save distance  : n x k
 	char **label; //save labels
+	float **center;//cluster centers : k x dim
+
 	float *Rmean; //save row means : dim
 	int *cluNum; //final cluster number : n
-	float **center;//cluster centers : k x dim
-	float **oldcenter;
-
-
-	center = (float**)calloc(k, sizeof(float*));
-	oldcenter = (float**)calloc(k, sizeof(float*));
 
 	X = (float**)calloc(nRow, sizeof(float*));
 	D = (float**)calloc(nRow, sizeof(float*));
 	label = (char**)calloc(nRow, sizeof(char*));
 	cluNum = (int*)calloc(nRow, sizeof(int));
 	Rmean = (float*)calloc(nCol, sizeof(float));
+	center = (float**)calloc(k, sizeof(float*));
 
 	for (i = 0; i < nRow; i++) {
 		X[i] = (float*)calloc(nCol, sizeof(float));
@@ -117,41 +103,39 @@ int main(void) {
 	}
 	for (i = 0; i < k; i++) {
 		center[i] = (float*)calloc(nCol, sizeof(float));
-		oldcenter[i] = (float*)calloc(nCol, sizeof(float));
 	}
-
 
 	/*****************read labels and data*****************/
 	for (i = 0; i < nRow; i++) {
 		//labelscan
-		for (j = 0; j < lablenum ; j++) {
+		for (j = 0; j < labelnum ; j++) {
 			fscanf(input_ptr, "%s", label[i]);
 		}
+		//data scan
 		for (j = 0; j < nCol; j++) {
 			fscanf(input_ptr, "%f", &(X[i][j]));
 			Rmean[j] += X[i][j];
 		}
 		fscanf(input_ptr, "\n");
-		
 	}
 	
-	//normalization
-	//ei = (ei-min)/(max-min)
+	//feature scaling [0,1]
+	//x = (x-min)/(max-min) 
 	if (norm_flag == 1) {
-		float minei = INFINITY, maxei = 0;
+		float minx = INFINITY, maxx = 0;
 		for (i = 0; i < nRow; i++) {
-			minei = INFINITY;
-			maxei = 0;
+			minx = INFINITY;
+			maxx = 0;
 			for (j = 0; j < nCol; j++) {
-				if (X[i][j] > maxei)
-					maxei = X[i][j];
-				if (X[i][j] < minei)
-					minei = X[i][j];
+				if (X[i][j] > maxx)
+					maxx = X[i][j];
+				if (X[i][j] < minx)
+					minx = X[i][j];
 			}
-
-
-			for (j = 0; j < nCol; j++) {
-				X[i][j] = (X[i][j] - minei) / (maxei - minei);
+			if (maxx - minx != 0) {
+				for (j = 0; j < nCol; j++) {
+					X[i][j] = (X[i][j] - minx) / (maxx - minx);
+				}
 			}
 		}
 	}
@@ -160,27 +144,29 @@ int main(void) {
 	/***************************************************************
 	*******************************k-means**************************
 	****************************************************************/
-	
+
 	startTime = clock();
-	kmeans(X, D, cluNum, Rmean, center, oldcenter);
+	//k-means clustering
+	kmeans(X, D, cluNum, Rmean, center);
 	endTime = clock();
 	gap = (float)(endTime - startTime) / (CLOCKS_PER_SEC);
-	printf("normal clustering time : %f \n", gap);
+	printf("K-means clustering time : %f \n", gap);
 
+	//alpha_beta estimation
 	if (alpha_beta_flag == 1) {
-		estimate_alpha_beta(X, center, alpha_delta, beta_delta, k, nRow, nCol);
+		estimate_alpha_beta(X, center, nRow, nCol);
 	}
 	printf("alpha : %f, beta : %f \n", alpha, beta);
-
-	free(Rmean);
-	free(label);
+	
 	for (i = 0; i < k; i++) {
 		free(center[i]);
-		free(oldcenter[i]);
+	}
+	for (int i = 0; i < nRow; i++) {
+		free(label[i]);
 	}
 	free(center);
-	free(oldcenter);
-
+	free(label);
+	free(Rmean);
 
 	/******************************************************************
 	********************Non-exhaustiveness, overlapping****************
@@ -199,12 +185,11 @@ int main(void) {
 
 	int** U; //cluster inform : n+alpha * 2 
 	float** M; //cluster mean : dim x k
-	float** dnk; //for N-betaN assign
+	float** dnk; //for N-betaN assignment
 
 	U = (int**)calloc(uAssign, sizeof(int*));
 	M = (float**)calloc(nCol, sizeof(float*));
 	dnk = (float**)calloc(nRow, sizeof(float*));
-	int* kNumlist = (int*)calloc(k, sizeof(int));
 
 	for (i = 0; i < uAssign; i++) {
 		U[i] = (int*)calloc(2, sizeof(int));
@@ -212,39 +197,34 @@ int main(void) {
 	for (i = 0; i < nRow; i++) {
 		U[i][0] = i;
 		U[i][1] = cluNum[i]+1;
+
+		dnk[i] = (float*)calloc(3, sizeof(float));
 	}
 	for (i = 0; i < nCol; i++) {
 		M[i] = (float*)calloc(k, sizeof(float));
 	}
 
-	for (i = 0; i < nRow; i++) {
-		dnk[i] = (float*)calloc(3, sizeof(float));
-	}
-
-	float** dab;
-	int modcol = 100;
+	int* kNumlist = (int*)calloc(k, sizeof(int)); //for calculating cluster means 
+	
+	// improved iteration
+	float * dabf;
+	int* dabi; 
 	if (iter_flag == 2) {
-		dab = (float**)calloc(nRow*k, sizeof(float*));
-		for (i = 0; i < nRow*k; i++) {
-			dab[i] = (float*)calloc(2, sizeof(float));
-		}
-		while (k / modcol != 0) {
-			modcol *= 10;
-		}
-		modcol *= 10;
+		dabf = (float*)calloc(nRow*k, sizeof(float));
+		dabi = (int*)calloc(nRow*k, sizeof(int));
 	}
 
 	printf("alphaN : %d betaN : %d\n", alphaN, betaN);
 	int t = 0;
 	int flag = 0;
 	double abj = (oldJ > J) ? (oldJ - J) : (J - oldJ);
-	//========================================iteration
 
+	//===============================iteration start ===============================
 	while ((abj > epsilon) && (t <= t_max)) {
 		oldJ = J;
 		J = 0;
 		int a, b;
-		//초기화
+		//initialize
 		for (i = 0; i < nCol; i++) {
 			for (j = 0; j < k; j++) {
 				M[i][j] = 0;
@@ -254,6 +234,7 @@ int main(void) {
 			kNumlist[i] = 0;
 		}
 
+		//calculate cluster mean
 		for (i = 0; i < uAssign; i++) {
 			if (U[i][1] > 0) {
 				a = U[i][0];
@@ -265,7 +246,6 @@ int main(void) {
 			}
 			else
 				break;
-
 		}
 		for (i = 0; i < nCol; i++) {
 			for (j = 0; j < k; j++) {
@@ -276,7 +256,6 @@ int main(void) {
 		}
 
 		//================compute distance
-
 		float dif;
 		for (i = 0; i < k; i++) {
 			for (j = 0; j < nRow; j++) {
@@ -293,7 +272,7 @@ int main(void) {
 		int mindx;
 		int r, cl;
 
-		if (iter_flag == 0) { //기존
+		if (iter_flag == 0) { //default
 			for (i = 0; i < nRow; i++) {
 				min = INFINITY;
 				mindx = 0;
@@ -308,7 +287,7 @@ int main(void) {
 				dnk[i][2] = (float)mindx;
 			}
 
-			quickSort(0, nRow - 1, dnk, 3);
+			quickSort(0, nRow - 1, dnk);
 
 			flag = 0;
 			for (i = 0; i < nAssign; i++) {
@@ -339,7 +318,7 @@ int main(void) {
 					dnk[i][2] = (float)mindx;
 				}
 
-				quickSort(0, nRow - 1, dnk, 3);
+				quickSort(0, nRow - 1, dnk);
 
 				flag = 0;
 				for (i = 0; i < nAssign; i++) {
@@ -354,12 +333,12 @@ int main(void) {
 					U[i][1] = cl + 1;
 					D[r][cl] = INFINITY;
 				}
-				if (flag == nAssign) {
+				if (flag == nAssign) { //N-betaN assignment : not changed
 					printf("%d\n", flag);
 					tempJ = J;
 				}
 			}
-			else {
+			else { 
 				for (i = 0; i < nAssign; i++) {
 					r = U[i][0];
 					cl = U[i][1];
@@ -372,15 +351,16 @@ int main(void) {
 
 		h = nAssign;
 		for (i = h; i < uAssign; i++) {
-			for (j = 0; j < 2; j++) {
-				U[i][j] = 0;
-			}
+			U[i][0] = 0;
+			U[i][1] = 0;
 		}
+
 		//================make(alphaN + betaN) assignments
 		int n = 0;
 		float min_d;
 		int i_star, j_star=0;
-		if (iter_flag != 2) {
+
+		if (iter_flag != 2) { //default
 			while (n < alphaN + betaN) {
 				min_d = INFINITY;
 				for (i = 0; i < nRow; i++) {
@@ -400,25 +380,26 @@ int main(void) {
 				n++;
 			}
 		}
-		else {
+		else { //speed improve
 			min_d = INFINITY;
 			for (i = 0; i < nRow; i++) {
 				for (j = 0; j < k; j++) {
 					if (D[i][j] != INFINITY) {
-						dab[n][0] = D[i][j];
-						dab[n][1] = (float)i;
+						dabf[n] = D[i][j];
+						dabi[n] = i;
 						n++;
 					}
 				}
 			}
-			quickSort(0, n-1, dab, 2);
+
+			quickSort_2(0, n-1,dabf, dabi);
 			n = 0;
 
 			while (n < alphaN + betaN) {
-				J = J + dab[n][0];
-				U[h][0] = i_star = (int)dab[n][1];
+				J = J + dabf[n];
+				U[h][0] = i_star = dabi[n];
 				for ( j = 0; j < k; j++) {
-					if (dab[n][0] == D[i_star][j]) {
+					if (dabf[n] == D[i_star][j]) {
 						j_star = j;
 						D[i_star][j] = INFINITY;
 						break;
@@ -431,18 +412,16 @@ int main(void) {
 			}
 		}
 
-
 		t++;
 		printf("Iteratoin %2d, objective : %f\n", t, J);
 		abj = (oldJ > J) ? (oldJ - J) : (J - oldJ);
 	}//end of iteration
 
 
-	printf("alphaN : %d, %d\n", alphaN, nAssign);
+	printf("alphaN : %d, nAssign : %d\n", alphaN, nAssign);
 	endTime = clock();
 	gap = (float)(endTime - startTime) / (CLOCKS_PER_SEC);
 	printf("NEO time : %f\n", gap);
-
 
 	quickSortint(0, uAssign-1, U);
 
@@ -452,16 +431,43 @@ int main(void) {
 		fprintf(save_ptr, "%d\n", U[i][1]);
 	}
 
-
 	fclose(input_ptr);
 	fclose(save_ptr);
+
+	//free
+	for (i = 0; i < nRow; i++) {
+		free(X[i]);
+		free(D[i]);
+		free(dnk[i]);
+	}
+	for (i = 0; i < uAssign; i++) {
+		free(U[i]);
+	}
+	for (i = 0; i < nCol; i++) {
+		free(M[i]);
+	}
+
+	free(X);
+	free(D);
+	free(U);
+	free(M);
+	free(kNumlist);
+	free(cluNum);
+	if (iter_flag == 2) {
+		free(dabf);
+		free(dabi);
+	}
+
 }
+
+
+int* dnkt2 = (int*)calloc(2, sizeof(int));
 
 void quickSortint(int left, int right, int** data) {
 	int pivot = left;
 	int j = pivot;
 	int i = left + 1;
-	int* dnkt = (int*)calloc(2, sizeof(int));
+	int*dnkt = dnkt2;
 
 	if (left < right) {
 		for (i; i <= right; i++) {
@@ -489,25 +495,16 @@ void quickSortint(int left, int right, int** data) {
 		quickSortint(left, pivot - 1, data);
 		quickSortint(pivot + 1, right, data);
 	}
-
-
-
 }
 
 float* dnkt3 = (float*)calloc(3, sizeof(float));
-float* dnkt2 = (float*)calloc(3, sizeof(float));
 
-void quickSort(int left, int right, float** data,int colnumber) {
+void quickSort(int left, int right, float** data) {
 	int pivot = left;
 	int j = pivot;
 	int i = left + 1;
-	float* dnkt;
-	if (colnumber == 3) {
-		dnkt = dnkt3;
-	}
-	else if (colnumber == 2) {
-		dnkt = dnkt2;
-	}
+	float* dnkt = dnkt3;
+
 	if (left < right) {
 		for (i; i <= right; i++) {
 			if (data[i][0] < data[pivot][0]) {
@@ -523,14 +520,51 @@ void quickSort(int left, int right, float** data,int colnumber) {
 		data[left] = data[j];
 		data[j] = dnkt;
 		pivot = j;
-		//free(dnkt);
-		quickSort(left, pivot - 1, data, colnumber);
-		quickSort(pivot + 1, right, data, colnumber);
+		
+		quickSort(left, pivot - 1, data);
+		quickSort(pivot + 1, right, data);
 	}
 
 }
 
-void estimate_alpha_beta(float** X, float** C, float alpha_delta, float beta_delta, int k, int n, int dim) {
+void quickSort_2(int left, int right, float* data, int* index) {
+	int pivot = left;
+	int j = pivot;
+	int i = left + 1;
+	float temp;
+	int tempint;
+
+	if (left < right) {
+		for (i; i <= right; i++) {
+			if (data[i] < data[pivot]) {
+				j++;
+				temp = data[j];
+				data[j] = data[i];
+				data[i] = temp;
+
+				tempint = index[j];
+				index[j] = index[i];
+				index[i] = tempint;
+			}
+
+		}
+		temp = data[left];
+		data[left] = data[j];
+		data[j] = temp;
+
+		tempint = index[left];
+		index[left] = index[j];
+		index[j] = tempint;
+
+		pivot = j;
+
+		quickSort_2(left, pivot - 1, data, index);
+		quickSort_2(pivot + 1, right, data, index);
+	}
+
+}
+
+void estimate_alpha_beta(float** X, float** C, int n, int dim) {
 	int i, j, h;
 	float** D; //n*k
 			   //X : n*dim C : k*dim 
@@ -550,7 +584,6 @@ void estimate_alpha_beta(float** X, float** C, float alpha_delta, float beta_del
 			D[j][i] = dif;
 		}
 	}
-
 
 	//compute mean
 	float** dist = (float**)calloc(n, sizeof(float*));
@@ -627,22 +660,28 @@ void estimate_alpha_beta(float** X, float** C, float alpha_delta, float beta_del
 	}//end of for
 	alpha = (float)overlap / n;
 
+
+
+	for (i = 0; i < n; i++) {
+		free(D[i]);
+		free(dist[i]);
+	}
 	free(D);
 	free(dist);
 }
 
-void kmeans(float** X, float** D, int* cluNum, float* Rmean, float** center, float**oldcenter) {
-	//FILE* svf;
-	//svf = fopen("output.txt", "w");
-	//if (ipf == NULL) {
-	//	printf("Output file open error\n");
-	//	exit(1);
-	//}
+void kmeans(float** X, float** D, int* cluNum, float* Rmean, float**center) {
 
 	int i, j, h;
 	int t = 0;
+	
+	float **oldcenter;
+	oldcenter = (float**)calloc(k, sizeof(float*));
+	for (i = 0; i < k; i++) {
+		oldcenter[i] = (float*)calloc(nCol, sizeof(float));
+	}
 
-	//row mean
+	//row mean initialize
 	for (i = 0; i < nCol; i++) {
 		Rmean[i] /= nRow;
 	}
@@ -663,8 +702,6 @@ void kmeans(float** X, float** D, int* cluNum, float* Rmean, float** center, flo
 			a[i] = temp;
 			i++;
 		}
-
-
 	}
 	for (i = 0; i < k; i++) {
 		for (j = 0; j < nCol; j++) {
@@ -740,29 +777,10 @@ void kmeans(float** X, float** D, int* cluNum, float* Rmean, float** center, flo
 		t = t + 1;
 	}//end of iteration
 
-	/**********************result print**********************/
-	//for (i = 0; i < k; i++) {
-	//	for (j = 0; j < nCol; j++) {
-	//		fprintf(svf, "%f ", center[i][j]);
-	//	}
-	//	fprintf(svf, "\n");
-	//}
-	//for (i = 0; i < k; i++) {
-	//	fprintf(svf, "**********************Cluster %d\n", i);
-	//	for (j = 0; j < nRow; j++) {
-	//		if (cluNum[j] == i) {
-	//			fprintf(svf, "%d ", j);
-	//			for (h = 0; h < nCol; h++) {
-	//				fprintf(svf, "%f ", X[j][h]);
-	//			}
-	//			fprintf(svf, "\n");
-	//		}
-	//	}
-	//}
-	//fclose(svf);
 
-
+	for (i = 0; i < k; i++) {
+		free(oldcenter[i]);
+	}
+	free(oldcenter);
 
 }
-
-

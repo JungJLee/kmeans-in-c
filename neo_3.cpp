@@ -13,7 +13,9 @@ int k; //cluster number
 int labelnum; //number of lable column
 
 //alpha, beta :set by user
+
 float alpha = 0.1, beta = 0.005;
+//float alpha = 0.0, beta = 0.00;
 // alpha_delta: (1) between -1 and 3.5 (the first strategy)
 // beta_delta: 3 or 6
 float alpha_delta = -0.1;
@@ -34,6 +36,8 @@ void quickSort_2(int left, int right, float* data, int* index);
 void quickSortint(int left, int right, int** data);
 void estimate_alpha_beta(float** X, float** C, int n, int dim);
 void kmeans(float** X, float** D, int* cluNum, float* Rmean, float** center);
+
+
 
 int main(void) {
 	/**********************select option**********************/
@@ -172,9 +176,9 @@ int main(void) {
 	********************Non-exhaustiveness, overlapping****************
 	*******************************************************************/
 
-	double J = INFINITY;
-	double oldJ = 0;
-	double tempJ = 0;
+	float J = INFINITY;
+	float oldJ = 0;
+	float tempJ = 0;
 	int epsilon = 0;
 	
 	float N = (float)nRow;
@@ -213,12 +217,26 @@ int main(void) {
 		dabf = (float*)calloc(nRow*k, sizeof(float));
 		dabi = (int*)calloc(nRow*k, sizeof(int));
 	}
+	int** oldU;
+	oldU = (int**)calloc(uAssign, sizeof(int*));
+	for (i = 0; i < uAssign; i++) {
+		U[i] = (int*)calloc(2, sizeof(int));
+		oldU[i] = (int*)calloc(2, sizeof(int));
+	}
+	for (i = 0; i < nRow; i++) {
+		U[i][0] = i;
+		U[i][1] = cluNum[i] + 1;
+
+		oldU[i][0] = i;
+		oldU[i][1] = cluNum[i] + 1;
+		dnk[i] = (float*)calloc(3, sizeof(float));
+	}
 
 	printf("alphaN : %d betaN : %d\n", alphaN, betaN);
 	int t = 0;
 	int flag = 0;
 	double abj = (oldJ > J) ? (oldJ - J) : (J - oldJ);
-
+	startTime = clock();
 	//===============================iteration start ===============================
 	while ((abj > epsilon) && (t <= t_max)) {
 		oldJ = J;
@@ -412,6 +430,25 @@ int main(void) {
 			}
 		}
 
+		if (t == 0) {
+
+			quickSortint(0, uAssign - 1, U);
+			bool uflag = true;
+			for (int i = 0; i < uAssign; i++) {
+				if ((U[i][0] != oldU[i][0]) || (U[i][1] != oldU[i][1])) {
+					uflag = false;
+					break;
+				}
+			}
+
+			if (uflag == true) {
+				break;
+			}
+
+		}
+
+		quickSortint(0, uAssign - 1, oldU);
+
 		t++;
 		printf("Iteratoin %2d, objective : %f\n", t, J);
 		abj = (oldJ > J) ? (oldJ - J) : (J - oldJ);
@@ -442,14 +479,17 @@ int main(void) {
 	}
 	for (i = 0; i < uAssign; i++) {
 		free(U[i]);
+		free(oldU[i]);
 	}
 	for (i = 0; i < nCol; i++) {
 		free(M[i]);
 	}
 
+	
 	free(X);
 	free(D);
 	free(U);
+	free(oldU);
 	free(M);
 	free(kNumlist);
 	free(cluNum);
@@ -459,7 +499,6 @@ int main(void) {
 	}
 
 }
-
 
 int* dnkt2 = (int*)calloc(2, sizeof(int));
 
